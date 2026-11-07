@@ -3,8 +3,6 @@
 
 package v1alpha3
 
-import corev1 "k8s.io/api/core/v1"
-
 // RuntimeEnvVar configures one literal runtime environment variable.
 type RuntimeEnvVar struct {
 	// +kubebuilder:validation:MinLength=1
@@ -31,9 +29,11 @@ type RuntimeSnapshotPolicy struct {
 //
 // +kubebuilder:validation:XValidation:rule="self.workerPoolRef.name.size() > 0",message="workerPoolRef name must not be empty"
 type RuntimeSubstratePolicy struct {
-	// WorkerPoolRef references a WorkerPool in the resource's namespace.
+	// WorkerPoolRef references a WorkerPool. An omitted namespace means the
+	// resource's namespace. Another namespace must be listed in the
+	// controller's substrate.workerPoolNamespaces setting.
 	// +required
-	WorkerPoolRef corev1.LocalObjectReference `json:"workerPoolRef"`
+	WorkerPoolRef ObjectReference `json:"workerPoolRef"`
 
 	// SnapshotPolicy configures runtime snapshot storage.
 	// +required
