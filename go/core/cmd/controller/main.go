@@ -17,15 +17,21 @@ limitations under the License.
 package main
 
 import (
+	"cmp"
 	"context"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+
 	configv1 "github.com/kagent-dev/kagent/go/api/gen/kagent/config/v1"
+	"github.com/kagent-dev/kagent/go/core/internal/egressceiling"
 	authimpl "github.com/kagent-dev/kagent/go/core/internal/httpserver/auth"
 	"github.com/kagent-dev/kagent/go/core/pkg/app"
 	"github.com/kagent-dev/kagent/go/core/pkg/auth"
@@ -90,10 +96,46 @@ func run(path string, check bool, level string) error {
 	}
 	// These downward-API inputs describe this pod, not runtime defaults.
 	podTelemetryDefaults(cfg, os.Getenv) //nolint:forbidigo // Private pod identity supplied by Helm.
-	options := app.Options{Authenticator: authenticator, AnthropicSelfHostedSandboxes: anthropicSelfHostedSandboxesConfig}
-	if err := app.Run(ctx, cfg, options); err != nil {
+	opts := app.Options{Authenticator: authenticator, AnthropicSelfHostedSandboxes: anthropicSelfHostedSandboxesConfig}
+	if err := egressProfileCeiling(&opts, os.Getenv); err != nil { //nolint:forbidigo // Deployment-specific opt-in supplied by Helm.
+		return err
+	}
+	if err := app.Run(ctx, cfg, opts); err != nil {
 		slog.Default().ErrorContext(ctx, "controller stopped", "error", err)
 		return err
+	}
+	return nil
+}
+
+// egressProfileCeiling limits actor egress to workspace egress profiles when
+// KAGENT_EGRESS_PROFILE_CEILING is true (docs/architecture/egress-profile-ceiling.md).
+func egressProfileCeiling(opts *app.Options, getenv func(string) string) error {
+	enabled, err := strconv.ParseBool(cmp.Or(getenv("KAGENT_EGRESS_PROFILE_CEILING"), "false"))
+	if err != nil {
+		return fmt.Errorf("KAGENT_EGRESS_PROFILE_CEILING: %w", err)
+	}
+	if !enabled {
+		return nil
+	}
+	suffixes := egressceiling.DefaultInternalSuffixes
+	if raw := getenv("KAGENT_EGRESS_PROFILE_INTERNAL_SUFFIXES"); raw != "" {
+		suffixes = nil
+		for suffix := range strings.SplitSeq(raw, ",") {
+			if suffix = strings.Trim(strings.TrimSpace(suffix), "."); suffix != "" {
+				suffixes = append(suffixes, strings.ToLower(suffix))
+			}
+		}
+	}
+	ceiling := egressceiling.New(suffixes)
+	opts.EgressPolicyCompilers = append(opts.EgressPolicyCompilers, ceiling)
+	setup := opts.SetupWithManager
+	opts.SetupWithManager = func(mgr manager.Manager) error {
+		if setup != nil {
+			if err := setup(mgr); err != nil {
+				return err
+			}
+		}
+		return ceiling.SetupWithManager(mgr)
 	}
 	return nil
 }
