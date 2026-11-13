@@ -27,3 +27,11 @@ type Input struct {
 type Compiler interface {
 	Compile(context.Context, Input, *ateapipb.EgressPolicy) error
 }
+
+// Watcher is implemented by a Compiler whose output depends on state outside
+// kagent. Changed blocks until that state may have changed and returns the
+// affected Atespaces; the elected controller then reapplies the policy of every
+// allocated actor in them. Changed must not lose a change while nobody calls it.
+type Watcher interface {
+	Changed(context.Context) ([]string, error)
+}

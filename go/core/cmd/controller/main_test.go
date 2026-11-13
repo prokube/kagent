@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authimpl "github.com/kagent-dev/kagent/go/core/internal/httpserver/auth"
+	"github.com/kagent-dev/kagent/go/core/pkg/app"
 	"github.com/kagent-dev/kagent/go/core/pkg/auth"
 )
 
@@ -80,4 +81,20 @@ func TestControllerAuthenticator(t *testing.T) {
 			require.Equal(t, tt.wantUser, session.Principal().ID)
 		})
 	}
+}
+
+func TestEgressProfileCeilingIsOptIn(t *testing.T) {
+	env := func(values map[string]string) func(string) string {
+		return func(key string) string { return values[key] }
+	}
+	opts := app.Options{}
+	require.NoError(t, egressProfileCeiling(&opts, env(nil)))
+	require.Empty(t, opts.EgressPolicyCompilers)
+	require.Nil(t, opts.SetupWithManager)
+
+	require.Error(t, egressProfileCeiling(&opts, env(map[string]string{"KAGENT_EGRESS_PROFILE_CEILING": "yes please"})))
+
+	require.NoError(t, egressProfileCeiling(&opts, env(map[string]string{"KAGENT_EGRESS_PROFILE_CEILING": "true"})))
+	require.Len(t, opts.EgressPolicyCompilers, 1)
+	require.NotNil(t, opts.SetupWithManager)
 }
