@@ -35,6 +35,31 @@ func MCPActorJWTHeaders(headers map[string]string) map[string]string {
 	return result
 }
 
+// MCPServerHeaders returns the headers a runtime sends to server, leaving the
+// caller's headers unchanged. Substrate mints an Actor JWT only into a request
+// that already carries the Authorization header, so an actorJwt server and a
+// server at the controller's own origin (the chart's kagent-api) get the
+// placeholder. Without it the controller sees no credential and, under any auth
+// mode other than insecure, rejects the Actor's MCP calls.
+func MCPServerHeaders(headers map[string]string, server *v1alpha3.RemoteMCPServer, controlPlaneURL string) map[string]string {
+	if server.Spec.ActorJWT != nil || sameOrigin(server.Spec.URL, controlPlaneURL) {
+		return MCPActorJWTHeaders(headers)
+	}
+	return headers
+}
+
+func sameOrigin(a, b string) bool {
+	left, err := url.Parse(a)
+	if err != nil || left.Host == "" {
+		return false
+	}
+	right, err := url.Parse(b)
+	if err != nil || right.Host == "" {
+		return false
+	}
+	return egress.Origin(left) == egress.Origin(right)
+}
+
 // passthroughClient sends the caller's token; an empty header means no target.
 type passthroughClient struct {
 	client, endpoint, header, prefix string

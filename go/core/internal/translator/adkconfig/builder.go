@@ -38,11 +38,20 @@ type provenanceEntry struct {
 type Builder struct {
 	ctx         krt.HandlerContext
 	collections translator.Collections
+	// controlPlaneURL is where runtimes reach the controller; MCP servers at
+	// its origin get the Actor JWT placeholder (translator.MCPServerHeaders).
+	controlPlaneURL string
 }
 
 // NewBuilder constructs an ADK configuration builder.
 func NewBuilder(ctx krt.HandlerContext, collections translator.Collections) *Builder {
 	return &Builder{ctx: ctx, collections: collections}
+}
+
+// WithControlPlaneURL sets the controller URL runtimes use; see Builder.
+func (c *Builder) WithControlPlaneURL(controlPlaneURL string) *Builder {
+	c.controlPlaneURL = controlPlaneURL
+	return c
 }
 
 type Result struct {

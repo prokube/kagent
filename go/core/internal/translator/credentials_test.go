@@ -335,3 +335,34 @@ func TestSameNamedSecretsInDifferentNamespaces(t *testing.T) {
 	require.ElementsMatch(t, []string{"ate-secret://k8s.io/default/team/auth/token", "ate-secret://k8s.io/default/shared/auth/token"}, uris)
 	require.False(t, SameModelCredentials(input.Root.ResolvedModelConfig.Config, child.ResolvedModelConfig.Config))
 }
+
+func TestMCPServerHeaders(t *testing.T) {
+	const controlPlane = "http://kagent-controller.kagent.svc.cluster.local:8083"
+	placeholder := map[string]string{"X-Team": "a", "Authorization": "Bearer " + CredentialPlaceholder}
+	for _, test := range []struct {
+		name     string
+		url      string
+		actorJWT bool
+		want     map[string]string
+	}{
+		{"the controller's own /mcp", controlPlane + "/mcp", false, placeholder},
+		{"the controller's origin with the default port spelled out", "http://KAGENT-CONTROLLER.kagent.svc.cluster.local:8083/mcp", false, placeholder},
+		{"an actorJwt server elsewhere", "https://tools.example.com/mcp", true, placeholder},
+		{"another server", "https://tools.example.com/mcp", false, map[string]string{"X-Team": "a"}},
+		{"another port on the controller host", "http://kagent-controller.kagent.svc.cluster.local:8080/mcp", false, map[string]string{"X-Team": "a"}},
+		{"another scheme on the controller host", "https://kagent-controller.kagent.svc.cluster.local:8083/mcp", false, map[string]string{"X-Team": "a"}},
+	} {
+		t.Run("Given a RemoteMCPServer at "+test.name+", when its runtime headers are compiled, assert that only Substrate-authenticated targets get the Authorization placeholder", func(t *testing.T) {
+			server := &v1alpha3.RemoteMCPServer{Spec: v1alpha3.RemoteMCPServerSpec{URL: test.url}}
+			if test.actorJWT {
+				server.Spec.ActorJWT = &v1alpha3.ActorJWT{Audiences: []string{"tools"}}
+			}
+			headers := map[string]string{"X-Team": "a"}
+
+			got := MCPServerHeaders(headers, server, controlPlane)
+
+			require.Equal(t, test.want, got)
+			require.Equal(t, map[string]string{"X-Team": "a"}, headers, "the caller's headers must stay unchanged")
+		})
+	}
+}

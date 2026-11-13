@@ -72,9 +72,7 @@ func (c *Compiler) compileMCP(
 		if err != nil {
 			return mcpCompilation{}, fmt.Errorf("compile RemoteMCPServer %q headers: %w", server.Name, err)
 		}
-		if server.Spec.ActorJWT != nil {
-			headers = translator.MCPActorJWTHeaders(headers)
-		}
+		headers = translator.MCPServerHeaders(headers, server, c.settings.GetControlPlaneUrl())
 
 		result.servers[name] = claudeconfig.MCPServer{
 			Type: transport, URL: server.Spec.URL, Headers: headers,
