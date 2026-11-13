@@ -71,3 +71,27 @@ func TestActorJWTMCPPlaceholder(t *testing.T) {
 		require.NotContains(t, original, "Authorization")
 	}
 }
+
+func TestControlPlaneMCPPlaceholder(t *testing.T) {
+	const controlPlane = "http://kagent-controller.kagent.svc.cluster.local:8083"
+	for _, test := range []struct {
+		name, url string
+		want      bool
+	}{
+		{"the controller's own /mcp", controlPlane + "/mcp", true},
+		{"another server", "http://tools.kagent.svc.cluster.local:8083/mcp", false},
+	} {
+		t.Run("Given a RemoteMCPServer at "+test.name+", when the Agent config is built, assert that the runtime requests the Actor JWT only for the controller", func(t *testing.T) {
+			config := &configv1.ADKAgentConfig{}
+			server := &v1alpha3.RemoteMCPServer{Spec: v1alpha3.RemoteMCPServerSpec{URL: test.url, Protocol: v1alpha3.RemoteMCPServerProtocolStreamableHttp}}
+
+			require.NoError(t, NewBuilder(nil, translator.Collections{}).WithControlPlaneURL(controlPlane).addRemoteMCPServer(config, server, nil, false, nil))
+
+			authorization, ok := config.HttpTools[0].Params.Headers["Authorization"]
+			require.Equal(t, test.want, ok)
+			if test.want {
+				require.Equal(t, "Bearer "+translator.CredentialPlaceholder, authorization)
+			}
+		})
+	}
+}

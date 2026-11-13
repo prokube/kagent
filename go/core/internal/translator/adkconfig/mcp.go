@@ -13,9 +13,7 @@ import (
 // This path intentionally has no proxy URL or egress-gateway indirection.
 func (c *Builder) addRemoteMCPServer(config *configv1.ADKAgentConfig, server *v1alpha3.RemoteMCPServer, tools []string, requireApproval bool, headers map[string]string) error {
 	targetURL := server.Spec.URL
-	if server.Spec.ActorJWT != nil {
-		headers = translator.MCPActorJWTHeaders(headers)
-	}
+	headers = translator.MCPServerHeaders(headers, server, c.controlPlaneURL)
 
 	switch server.Spec.Protocol {
 	case v1alpha3.RemoteMCPServerProtocolSse:
