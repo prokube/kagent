@@ -61,7 +61,9 @@ func (c *Compiler) compileMCP(ctx context.Context, namespace string, tools []tra
 		if err != nil {
 			return mcpCompilation{}, fmt.Errorf("compile RemoteMCPServer %q headers: %w", server.Name, err)
 		}
-		headers = translator.MCPServerHeaders(headers, server, c.settings.GetControlPlaneUrl())
+		if server.Spec.ActorJWT != nil {
+			headers = translator.MCPActorJWTHeaders(headers)
+		}
 
 		selected := append([]string(nil), tool.Binding.Tools...)
 		slices.Sort(selected)
