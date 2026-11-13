@@ -132,6 +132,7 @@ type Options struct {
 	MCPExtensions func(*mcpsdk.Server) error
 	// EgressPolicyCompilers bind tokenPassthrough targets; with any registered,
 	// all must be bound. Authenticator must not forward the caller token.
+	// Compilers that implement egresspolicy.Watcher get their changes reapplied.
 	EgressPolicyCompilers []egresspolicy.Compiler
 }
 
@@ -316,6 +317,13 @@ func Run(ctx context.Context, input *configv1.ControllerConfig, opts Options) er
 	}
 	if err := manager.Add(reconciler); err != nil {
 		return fmt.Errorf("add reconciler to controller manager: %w", err)
+	}
+	for _, compiler := range opts.EgressPolicyCompilers {
+		if watcher, ok := compiler.(egresspolicy.Watcher); ok {
+			if err := manager.Add(controller.NewEgressRefresher(store, actors, watcher)); err != nil {
+				return fmt.Errorf("add egress policy refresher to controller manager: %w", err)
+			}
+		}
 	}
 	runtimeGC, err := controller.NewRuntimeRevisionGC(store, actors, cfg.GetRuntimeRevisions().GetGcInterval().AsDuration(), otel.GetMeterProvider())
 	if err != nil {

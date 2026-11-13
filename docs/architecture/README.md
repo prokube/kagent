@@ -99,6 +99,7 @@ cleanup. Session lifecycle workers independently pause/suspend idle Actors.
 
 - [Installation library](installation.md)
 - [Egress policies](egress-policies.md)
+- [Workspace egress profile ceiling](egress-profile-ceiling.md)
 - [Runtime credential injection](credential-injection.md)
 - [Configuration and compilation](configuration-and-compilation.md)
 - [Process configuration](process-configuration.md)

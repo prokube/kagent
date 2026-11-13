@@ -113,6 +113,61 @@ func TestRuntimeEgressRetainsSourceAndListsSuspendedActors(t *testing.T) {
 	require.Empty(t, remaining)
 }
 
+func TestRuntimeEgressAtespaceTargetsListBothKinds(t *testing.T) {
+	client := NewClient(setupTestDB(t), "public")
+	ctx := t.Context()
+	revision := RuntimeRevision{Revision: "agent", Namespace: "team-a", AgentName: "scratch", AgentUID: "uid", SourceSnapshot: []byte(`{}`), AgentCard: &a2apb.AgentCard{}, ActorTemplateAtespace: "team-a", ActorTemplateName: "runtime"}
+	require.NoError(t, client.UpsertAgentDefinition(ctx, AgentDefinition{Namespace: "team-a", AgentName: "scratch", AgentUID: "uid", DesiredRevision: "agent"}))
+	require.NoError(t, recordErr(client.RecordRuntimeRevision(ctx, revision, RecordRevisionOptions{Ready: true})))
+	session, _, err := client.CreateSession(ctx, newSessionRequest(uuid.NewString(), "scratch", "kagent", ""), "request")
+	require.NoError(t, err)
+	targets, err := client.ListRuntimeEgressAtespaceTargets(ctx, "team-a", "", 10)
+	require.NoError(t, err)
+	require.Empty(t, targets, "unissued creations cannot have actors")
+	op, err := client.BeginSessionOperation(ctx, session.Id, apiv1.RuntimeOperation_RUNTIME_OPERATION_CREATE, false)
+	require.NoError(t, err)
+	executor := uuid.New()
+	claimed, err := client.ClaimSessionOperation(ctx, session.Id, op.ID, executor)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	_, err = client.FinishSessionOperation(ctx, session.Id, op.ID, executor, "actor.example.com", "actor-uid", "")
+	require.NoError(t, err)
+	sandbox, options := sandboxFixture(t, client, "sandbox")
+	created, _, err := client.CreateSandbox(ctx, sandbox, "sandbox", options)
+	require.NoError(t, err)
+	sandboxOp, err := client.BeginSandboxOperation(ctx, created.Id, apiv1.RuntimeOperation_RUNTIME_OPERATION_CREATE)
+	require.NoError(t, err)
+	claimed, err = client.ClaimSandboxOperation(ctx, created.Id, sandboxOp.ID, uuid.New())
+	require.NoError(t, err)
+	require.True(t, claimed)
+
+	targets, err = client.ListRuntimeEgressAtespaceTargets(ctx, "team-a", "", 10)
+	require.NoError(t, err)
+	require.Len(t, targets, 2)
+	byID := map[string]RuntimeEgressTarget{targets[0].ID: targets[0], targets[1].ID: targets[1]}
+	require.Equal(t, RuntimeEgressTarget{ID: session.Id, Revision: "agent", Namespace: "team-a", Atespace: "team-a", TemplateName: "runtime", ActorUID: "actor-uid"}, byID[session.Id])
+	require.Equal(t, RuntimeEgressTarget{ID: created.Id, Revision: "sandbox", Namespace: "team-a", Atespace: "team-a", TemplateName: "sandbox"}, byID[created.Id])
+	first, err := client.ListRuntimeEgressAtespaceTargets(ctx, "team-a", "", 1)
+	require.NoError(t, err)
+	require.Len(t, first, 1)
+	second, err := client.ListRuntimeEgressAtespaceTargets(ctx, "team-a", first[0].ID, 1)
+	require.NoError(t, err)
+	require.Len(t, second, 1)
+	require.NotEqual(t, first[0].ID, second[0].ID)
+	other, err := client.ListRuntimeEgressAtespaceTargets(ctx, "other", "", 10)
+	require.NoError(t, err)
+	require.Empty(t, other)
+	_, err = client.ListRuntimeEgressAtespaceTargets(ctx, "", "", 10)
+	require.Error(t, err)
+
+	_, err = client.BeginSessionOperation(ctx, session.Id, apiv1.RuntimeOperation_RUNTIME_OPERATION_DELETE, false)
+	require.NoError(t, err)
+	targets, err = client.ListRuntimeEgressAtespaceTargets(ctx, "team-a", "", 10)
+	require.NoError(t, err)
+	require.Len(t, targets, 1)
+	require.Equal(t, created.Id, targets[0].ID)
+}
+
 func TestRuntimeEgressTokenOriginsAreNotGrants(t *testing.T) {
 	many := make([]string, 257)
 	for i := range many {

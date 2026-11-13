@@ -133,6 +133,29 @@ func (c *Client) ListRuntimeEgressSourceTargets(ctx context.Context, source Runt
 	}
 }
 
+// ListRuntimeEgressAtespaceTargets pages allocated instances of both kinds whose
+// actors run in atespace, in ID order, with the filters of
+// ListRuntimeEgressSourceTargets.
+func (c *Client) ListRuntimeEgressAtespaceTargets(ctx context.Context, atespace, afterID string, limit int) ([]RuntimeEgressTarget, error) {
+	if atespace == "" {
+		return nil, fmt.Errorf("runtime egress atespace is required")
+	}
+	return queryMany(ctx, c.db, `
+  SELECT i.id::text AS id, i.prepared_revision AS revision, r.namespace,
+    r.actor_template_atespace AS atespace, r.actor_template_name AS template_name,
+    COALESCE(s.actor_uid, '') AS actor_uid
+  FROM runtime_instance i
+  JOIN runtime_revision r ON r.revision = i.prepared_revision AND r.kind = i.kind
+  LEFT JOIN session s ON i.kind = 'agent' AND s.id = i.id
+  WHERE r.actor_template_atespace = $1
+    AND (i.kind <> 'agent' OR s.id IS NOT NULL)
+    AND (i.operation <> 'RUNTIME_OPERATION_CREATE' OR i.executor_id IS NOT NULL)
+    AND i.state <> 'RUNTIME_STATE_DELETED' AND i.operation <> 'RUNTIME_OPERATION_DELETE'
+    AND i.id > COALESCE(NULLIF($2, '')::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
+  ORDER BY i.id LIMIT $3
+ `, pgx.RowToStructByName[RuntimeEgressTarget], atespace, afterID, limit)
+}
+
 // decodeEgressGrant treats absent definitions as empty grants and rejects invalid
 // durable rules. Callers scope the read to an active Kubernetes source identity.
 func decodeEgressGrant(grants egress.Access, err error) (egress.Access, error) {

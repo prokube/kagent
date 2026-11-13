@@ -18,6 +18,10 @@ type actorEgressStore interface {
 	ListRuntimeEgressSourceTargets(context.Context, database.RuntimeEgressSource, string, int) ([]database.RuntimeEgressTarget, error)
 }
 
+type atespaceEgressStore interface {
+	ListRuntimeEgressAtespaceTargets(context.Context, string, string, int) ([]database.RuntimeEgressTarget, error)
+}
+
 type actorEgressClient interface {
 	GetActor(context.Context, string, string) (*ateapipb.Actor, error)
 	EnsureActorEgressPolicy(context.Context, string, string, string) error
@@ -28,13 +32,27 @@ type actorEgressClient interface {
 // grants are unchanged. Continue past individual failures so one unavailable
 // actor cannot prevent revocation on the others.
 func applySourceEgress(ctx context.Context, store actorEgressStore, actors actorEgressClient, source database.RuntimeEgressSource) error {
+	return applyEgressTargets(ctx, actors, fmt.Sprintf("%s %s/%s", source.Kind, source.Namespace, source.Name), func(after string, limit int) ([]database.RuntimeEgressTarget, error) {
+		return store.ListRuntimeEgressSourceTargets(ctx, source, after, limit)
+	})
+}
+
+// applyAtespaceEgress updates every allocated actor in atespace, as
+// applySourceEgress does for one source.
+func applyAtespaceEgress(ctx context.Context, store atespaceEgressStore, actors actorEgressClient, atespace string) error {
+	return applyEgressTargets(ctx, actors, "Atespace "+atespace, func(after string, limit int) ([]database.RuntimeEgressTarget, error) {
+		return store.ListRuntimeEgressAtespaceTargets(ctx, atespace, after, limit)
+	})
+}
+
+func applyEgressTargets(ctx context.Context, actors actorEgressClient, scope string, list func(string, int) ([]database.RuntimeEgressTarget, error)) error {
 	const pageSize = 100
 	var failures *multierror.Error
 	after := ""
 	for {
-		targets, err := store.ListRuntimeEgressSourceTargets(ctx, source, after, pageSize)
+		targets, err := list(after, pageSize)
 		if err != nil {
-			return multierror.Append(failures, fmt.Errorf("failed to list %s %s/%s actors: %w", source.Kind, source.Namespace, source.Name, err)).ErrorOrNil()
+			return multierror.Append(failures, fmt.Errorf("failed to list %s actors: %w", scope, err)).ErrorOrNil()
 		}
 		var group errgroup.Group
 		group.SetLimit(16)
