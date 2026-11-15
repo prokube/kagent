@@ -78,10 +78,10 @@ An Atespace whose namespace no longer exists counts as unreadable.
 
 ## Limits
 
-- With any compiler registered, kagent requires compilers to bind every
-  `tokenPassthrough` target. The ceiling binds none, so Agents with a
-  `tokenPassthrough` model or MCP server cannot start while it is enabled, in
-  any namespace.
+- The ceiling binds no `tokenPassthrough` target, so it does not work with
+  gateway token passthrough (`app.Options.GatewayTokenPassthrough`). Runtimes
+  forward the caller token instead; its origin must still be inside the
+  ceiling (Kubernetes Service names are).
 - The ceiling reads the profile writer's resources, not the profile itself.
   Profiles in other formats need another reader.
 - Golden actor preparation uses its own bootstrap policy, which only reaches
