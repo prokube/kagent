@@ -22,7 +22,8 @@ type Input struct {
 }
 
 // Compiler extends the built-in policy and may change anything in it. Compilers
-// run in order; afterwards every target must have a header on its origin.
+// run in order; with gateway token passthrough every target must afterwards
+// have a header on its origin.
 // Compile may run more than once per actor and must not have side effects.
 type Compiler interface {
 	Compile(context.Context, Input, *ateapipb.EgressPolicy) error

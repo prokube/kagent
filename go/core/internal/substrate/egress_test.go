@@ -94,7 +94,7 @@ func TestEnsureActorEgressPolicyDeniesWhenExtensionFails(t *testing.T) {
 		policy.Rules[0].GetHttps().Effects = &ateapipb.HttpRuleEffects{ReplaceHeaders: []*ateapipb.CredentialHeader{{Header: "authorization", Prefix: "Bearer ", CredentialUri: "ate-secret://k8s.io/default/team-a/token/value"}}}
 		return failure
 	})
-	client := &Client{ControlClient: fake, cfg: Config{ControlPlaneURL: testControlPlaneURL, EgressPolicies: store, EgressPolicyCompilers: []egresspolicy.Compiler{extension}}}
+	client := &Client{ControlClient: fake, cfg: Config{ControlPlaneURL: testControlPlaneURL, EgressPolicies: store, EgressPolicyCompilers: []egresspolicy.Compiler{extension}, GatewayTokenPassthrough: true}}
 	reconcile := func() error { return client.EnsureActorEgressPolicy(t.Context(), "team-a", "actor", "revision") }
 
 	require.NoError(t, reconcile())

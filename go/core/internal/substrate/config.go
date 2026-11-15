@@ -12,6 +12,8 @@ type Config struct {
 	EgressPolicies egress.PolicyStore
 	// EgressPolicyCompilers extend each actor's EgressPolicy in order.
 	EgressPolicyCompilers []egresspolicy.Compiler
+	// GatewayTokenPassthrough requires compilers to bind every tokenPassthrough target.
+	GatewayTokenPassthrough bool
 	// ControlPlaneURL is the runtime endpoint whose egress rule injects Actor JWTs.
 	ControlPlaneURL string
 	// AteAPIEndpoint is a gRPC target (e.g. dns:///api.ate-system.svc:443).

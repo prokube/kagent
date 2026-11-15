@@ -109,7 +109,7 @@ func TestCompileActorEgressPolicyExtensions(t *testing.T) {
 		})}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			policy, err := compileActorEgressPolicy(t.Context(), "team", access, testControlPlaneURL, test.compilers)
+			policy, err := compileActorEgressPolicy(t.Context(), "team", access, testControlPlaneURL, test.compilers, true)
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
 				require.Nil(t, policy)
@@ -123,8 +123,17 @@ func TestCompileActorEgressPolicyExtensions(t *testing.T) {
 
 func TestCompileActorEgressPolicyWithoutExtensionsLeavesTargetsUnbound(t *testing.T) {
 	target := egresspolicy.GatewayTarget{Origin: "https://api.example.com:443", Header: "authorization", Prefix: "Bearer "}
-	policy, err := compileActorEgressPolicy(t.Context(), "team", egress.Access{Destinations: []string{target.Origin}, TokenPassthroughTargets: []egresspolicy.GatewayTarget{target}}, testControlPlaneURL, nil)
+	policy, err := compileActorEgressPolicy(t.Context(), "team", egress.Access{Destinations: []string{target.Origin}, TokenPassthroughTargets: []egresspolicy.GatewayTarget{target}}, testControlPlaneURL, nil, false)
 	require.NoError(t, err, "runtimes forward the caller token without an extension")
+	require.Empty(t, policy.GetRules()[0].GetHttps().GetEffects().GetReplaceHeaders())
+}
+
+func TestCompileActorEgressPolicyWithRuntimePassthroughAllowsExtensions(t *testing.T) {
+	target := egresspolicy.GatewayTarget{Origin: "https://api.example.com:443", Header: "authorization", Prefix: "Bearer "}
+	access := egress.Access{Destinations: []string{target.Origin}, TokenPassthroughTargets: []egresspolicy.GatewayTarget{target}}
+	restrict := compilerFunc(func(context.Context, egresspolicy.Input, *ateapipb.EgressPolicy) error { return nil })
+	policy, err := compileActorEgressPolicy(t.Context(), "team", access, testControlPlaneURL, []egresspolicy.Compiler{restrict}, false)
+	require.NoError(t, err, "extensions that only restrict egress keep runtime passthrough")
 	require.Empty(t, policy.GetRules()[0].GetHttps().GetEffects().GetReplaceHeaders())
 }
 
