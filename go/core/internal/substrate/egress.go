@@ -23,7 +23,7 @@ func (c *Client) CheckActorEgressPolicy(ctx context.Context, atespace, revision 
 	if err != nil {
 		return fmt.Errorf("load intended actor egress: %w", err)
 	}
-	_, err = compileActorEgressPolicy(ctx, atespace, access, c.cfg.ControlPlaneURL, c.cfg.EgressPolicyCompilers)
+	_, err = compileActorEgressPolicy(ctx, atespace, access, c.cfg.ControlPlaneURL, c.cfg.EgressPolicyCompilers, c.cfg.GatewayTokenPassthrough)
 	return err
 }
 
@@ -48,7 +48,7 @@ func (c *Client) EnsureActorEgressPolicy(ctx context.Context, atespace, name, re
 		if err != nil {
 			return fmt.Errorf("load intended actor egress: %w", err)
 		}
-		policy, chainErr := compileActorEgressPolicy(ctx, atespace, access, c.cfg.ControlPlaneURL, c.cfg.EgressPolicyCompilers)
+		policy, chainErr := compileActorEgressPolicy(ctx, atespace, access, c.cfg.ControlPlaneURL, c.cfg.EgressPolicyCompilers, c.cfg.GatewayTokenPassthrough)
 		if chainErr != nil {
 			// No rules denies all; extensions may have removed built-in access.
 			policy = &ateapipb.EgressPolicy{Metadata: &ateapipb.ResourceMetadata{Atespace: atespace, Name: "default"}}

@@ -84,8 +84,8 @@ func (c defaultEgressPolicyCompiler) Compile(_ context.Context, input egresspoli
 
 // compileActorEgressPolicy runs the built-in compiler, then each extension.
 // Extensions may change anything; the result must still validate, and with
-// any extension every tokenPassthrough target must end bound.
-func compileActorEgressPolicy(ctx context.Context, atespace string, access egress.Access, controlPlaneURL string, compilers []egresspolicy.Compiler) (*ateapipb.EgressPolicy, error) {
+// gateway token passthrough every tokenPassthrough target must end bound.
+func compileActorEgressPolicy(ctx context.Context, atespace string, access egress.Access, controlPlaneURL string, compilers []egresspolicy.Compiler, gatewayTokenPassthrough bool) (*ateapipb.EgressPolicy, error) {
 	policy := &ateapipb.EgressPolicy{Metadata: &ateapipb.ResourceMetadata{Atespace: atespace, Name: "default"}}
 	chain := append([]egresspolicy.Compiler{defaultEgressPolicyCompiler{access: access, controlPlaneURL: controlPlaneURL}}, compilers...)
 	for _, compiler := range chain {
@@ -110,7 +110,7 @@ func compileActorEgressPolicy(ctx context.Context, atespace string, access egres
 		return nil, err
 	}
 	for _, target := range access.TokenPassthroughTargets {
-		if len(compilers) != 0 && headers[target.Origin+"\x00"+target.Header] == nil {
+		if gatewayTokenPassthrough && headers[target.Origin+"\x00"+target.Header] == nil {
 			return nil, fmt.Errorf("gateway target %s header %s has no credential", target.Origin, target.Header)
 		}
 	}

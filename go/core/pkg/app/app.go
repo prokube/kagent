@@ -132,10 +132,13 @@ type Options struct {
 	// not protected: the SDK replaces a tool or resource registered under an
 	// existing name or URI. Returning an error aborts startup.
 	MCPExtensions func(*mcpsdk.Server) error
-	// EgressPolicyCompilers bind tokenPassthrough targets; with any registered,
-	// all must be bound. Authenticator must not forward the caller token.
+	// EgressPolicyCompilers extend each actor's EgressPolicy in order.
 	// Compilers that implement egresspolicy.Watcher get their changes reapplied.
 	EgressPolicyCompilers []egresspolicy.Compiler
+	// GatewayTokenPassthrough delivers tokenPassthrough credentials at the egress
+	// gateway: compilers must bind every target, and Authenticator must replace
+	// the caller token with the kagent-credential-injected placeholder.
+	GatewayTokenPassthrough bool
 }
 
 // resolve substitutes core's defaults for whichever components the caller left
@@ -303,14 +306,18 @@ func Run(ctx context.Context, input *configv1.ControllerConfig, opts Options) er
 	if err != nil {
 		return err
 	}
+	if opts.GatewayTokenPassthrough && len(opts.EgressPolicyCompilers) == 0 {
+		return fmt.Errorf("gateway token passthrough requires an egress policy compiler")
+	}
 	actors, err := substrate.Dial(ctx, substrate.Config{
-		EgressPolicies:        store,
-		EgressPolicyCompilers: opts.EgressPolicyCompilers,
-		ControlPlaneURL:       cfg.GetRuntimeDefaults().GetControlPlaneUrl(),
-		AteAPIEndpoint:        cfg.GetSubstrate().GetApiEndpoint(),
-		CAFile:                cfg.GetSubstrate().GetCaFile(),
-		ClientCertFile:        cfg.GetSubstrate().GetClientCertFile(),
-		CallTimeout:           30 * time.Second,
+		EgressPolicies:          store,
+		EgressPolicyCompilers:   opts.EgressPolicyCompilers,
+		GatewayTokenPassthrough: opts.GatewayTokenPassthrough,
+		ControlPlaneURL:         cfg.GetRuntimeDefaults().GetControlPlaneUrl(),
+		AteAPIEndpoint:          cfg.GetSubstrate().GetApiEndpoint(),
+		CAFile:                  cfg.GetSubstrate().GetCaFile(),
+		ClientCertFile:          cfg.GetSubstrate().GetClientCertFile(),
+		CallTimeout:             30 * time.Second,
 	})
 	if err != nil {
 		return err

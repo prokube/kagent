@@ -106,14 +106,15 @@ teardown therefore carry the token of the caller that opened the session.
 
 ### Gateway token passthrough
 
-Without `app.Options.EgressPolicyCompilers`, runtimes forward the caller token
-as described above. To keep it out of runtimes, an embedding program registers
-compilers and its `Authenticator.UpstreamAuth` must replace the caller's
-`Authorization` with `Bearer kagent-credential-injected`; registering compilers
-alone changes nothing, and a forwarding authenticator still exposes the token.
-The runtime forwards the placeholder as usual. Compilers run in order after the
-built-in EgressPolicy compiler and may change anything it produced. Kagent then
-validates the result, and every target must have a header. New create and resume
+By default runtimes forward the caller token as described above, also when
+`app.Options.EgressPolicyCompilers` are registered. To keep it out of runtimes,
+an embedding program sets `app.Options.GatewayTokenPassthrough`, registers
+compilers that bind every target, and its `Authenticator.UpstreamAuth` must
+replace the caller's `Authorization` with `Bearer kagent-credential-injected`;
+a forwarding authenticator still exposes the token. The runtime forwards the
+placeholder as usual. Compilers run in order after the built-in EgressPolicy
+compiler and may change anything it produced. Kagent then validates the result,
+and with `GatewayTokenPassthrough` every target must have a header. New create and resume
 operations compile the policy before they are issued, so a failure stops them
 before any lifecycle mutation. If a later compile or this validation fails, the
 actor gets no egress until a retry succeeds. Kagent never names a credential provider.
